@@ -1,0 +1,338 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Weather Card</title>
+<style>
+  :root{
+    --card-radius: 22px;
+    --glass: rgba(255,255,255,.12);
+    --text: #eef5ff;
+    --muted: #dbe6ffcc;
+  }
+
+  /* Page */
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, Ubuntu, Cantarell, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+    display:grid;
+    place-items:center;
+    background:#0b0f14;
+    color:var(--text);
+  }
+
+  /* Card */
+  .card{
+    width:min(92vw, 520px);
+    aspect-ratio: 1/1.1;
+    background: linear-gradient(145deg, #00d0b0, #6c5bd6);
+    border-radius: var(--card-radius);
+    position:relative;
+    box-shadow:
+      0 20px 50px rgba(0,0,0,.45),
+      inset 0 0 0 1px rgba(255,255,255,.08);
+    padding:26px 26px 18px;
+    overflow:hidden;
+  }
+  .card::after{
+    /* subtle noise/shine */
+    content:"";
+    position:absolute; inset:0;
+    background: radial-gradient(1200px 500px at -10% -10%, rgba(255,255,255,.18), transparent 55%),
+                radial-gradient(900px 700px at 110% 110%, rgba(0,0,0,.18), transparent 55%);
+    pointer-events:none;
+    border-radius: inherit;
+  }
+
+  /* Search bar */
+  .search{
+    display:flex; gap:12px; align-items:center;
+  }
+  .search input{
+    flex:1;
+    height:46px;
+    padding:0 16px;
+    border:none; outline:none;
+    border-radius: 999px;
+    background: rgba(255,255,255,.22);
+    color:#fff;
+    font-size:15px;
+    backdrop-filter: blur(8px);
+  }
+  .iconbtn{
+    width:46px; height:46px; display:grid; place-items:center;
+    border-radius:50%;
+    border:none; outline:none; cursor:pointer;
+    background: rgba(255,255,255,.22);
+    backdrop-filter: blur(8px);
+    transition: transform .08s ease;
+  }
+  .iconbtn:active{ transform: scale(.96); }
+
+  /* Center weather block */
+  .center{
+    position:absolute; left:0; right:0;
+    top: 50%; transform: translateY(-44%);
+    display:grid; justify-items:center; gap:12px;
+    padding: 0 28px;
+    text-align:center;
+  }
+  #art{
+    width:min(180px, 40vw);
+    height:auto;
+    filter: drop-shadow(0 6px 10px rgba(0,0,0,.35));
+  }
+  .temp{
+    font-size: clamp(38px, 9vw, 64px);
+    letter-spacing: .5px;
+    font-weight: 700;
+  }
+  .city{
+    margin-top:-8px;
+    font-size: clamp(18px, 5vw, 28px);
+    color: var(--muted);
+    font-weight: 600;
+  }
+
+  /* Bottom stats */
+  .stats{
+    position:absolute; left:0; right:0; bottom:12px;
+    padding: 0 28px 10px;
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap:14px;
+    color:var(--muted);
+    font-weight:600;
+  }
+  .stat{
+    display:flex; gap:10px; align-items:center;
+    padding:12px 12px;
+    border-radius:14px;
+    background: var(--glass);
+    backdrop-filter: blur(6px);
+  }
+  .stat svg{ width:22px; height:22px; flex:0 0 22px; }
+  .label{ font-size:12px; opacity:.9 }
+  .value{ font-size:16px; color:#fff }
+
+  /* Small helper */
+  .hidden{ display:none !important; }
+  .error{
+    position:absolute; left:26px; right:26px; top:78px;
+    font-size:14px; color:#fff; background:rgba(255,65,65,.28);
+    border:1px solid rgba(255,255,255,.25);
+    padding:8px 12px; border-radius:10px;
+  }
+
+  /* Weather-based gradient themes */
+  .theme-clear { background:linear-gradient(145deg, #00d0ff, #6c5bd6) }
+  .theme-clouds{ background:linear-gradient(145deg, #77e3d4, #6a86ff) }
+  .theme-rain  { background:linear-gradient(145deg, #33c0c9, #7161ff) }
+  .theme-snow  { background:linear-gradient(145deg, #78d1ff, #c1b9ff) }
+  .theme-fog   { background:linear-gradient(145deg, #8bb6c1, #7e8fb8) }
+  .theme-thunder{background:linear-gradient(145deg, #2fb3c1, #3e2ea8)}
+  .theme-default{ background:linear-gradient(145deg, #00d0b0, #6c5bd6) }
+</style>
+</head>
+<body>
+
+  <div class="card theme-default" id="card">
+    <div class="search">
+      <input id="q" type="text" placeholder="Search city e.g. Delhi" autocomplete="off" />
+      <button class="iconbtn" id="go" title="Search" aria-label="Search">
+        <!-- magnifier -->
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="22" height="22">
+          <circle cx="11" cy="11" r="7" stroke-width="2"></circle>
+          <path d="M21 21l-4.35-4.35" stroke-width="2" stroke-linecap="round"></path>
+        </svg>
+      </button>
+    </div>
+
+    <div id="err" class="error hidden"></div>
+
+    <div class="center" id="center">
+      <svg id="art" viewBox="0 0 160 120" aria-hidden="true"></svg>
+      <div class="temp" id="temp">--°C</div>
+      <div class="city" id="city">Search a city</div>
+    </div>
+
+    <div class="stats">
+      <div class="stat">
+        <!-- humidity icon -->
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <path d="M12 3C12 3 5 10 5 14a7 7 0 0 0 14 0c0-4-7-11-7-11z" stroke-width="2"></path>
+        </svg>
+        <div>
+          <div class="value" id="humidity">--%</div>
+          <div class="label">Humidity</div>
+        </div>
+      </div>
+
+      <div class="stat">
+        <!-- wind icon -->
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <path d="M3 12h12a3 3 0 1 0-3-3" stroke-width="2" stroke-linecap="round"></path>
+          <path d="M3 18h8a3 3 0 1 1-3 3" stroke-width="2" stroke-linecap="round"></path>
+        </svg>
+        <div>
+          <div class="value" id="wind">-- km/h</div>
+          <div class="label">Wind Speed</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const API_KEY = "5ee2d0098557a34780e6c9e9e6026437"; // ← put your OpenWeather key here
+const q = document.getElementById('q');
+const go = document.getElementById('go');
+const temp = document.getElementById('temp');
+const city = document.getElementById('city');
+const humidity = document.getElementById('humidity');
+const wind = document.getElementById('wind');
+const art = document.getElementById('art');
+const err = document.getElementById('err');
+const card = document.getElementById('card');
+
+function setError(msg){
+  err.textContent = msg;
+  err.classList.remove('hidden');
+  setTimeout(()=>err.classList.add('hidden'), 3000);
+}
+
+function kph(ms){ return (ms*3.6).toFixed(2) + " km/h"; }
+
+function themeFor(main){
+  main = (main||"").toLowerCase();
+  if(main.includes('thunder')) return 'theme-thunder';
+  if(main.includes('snow')) return 'theme-snow';
+  if(main.includes('rain') || main.includes('drizzle')) return 'theme-rain';
+  if(main.includes('fog')||main.includes('mist')||main.includes('haze')||main.includes('smoke'))
+    return 'theme-fog';
+  if(main.includes('cloud')) return 'theme-clouds';
+  if(main.includes('clear')) return 'theme-clear';
+  return 'theme-default';
+}
+
+/* Minimal SVG art for a few common conditions */
+function drawIcon(main){
+  main = (main||"").toLowerCase();
+  let svg = '';
+  if(main.includes('clear')){
+    svg = `
+      <defs>
+        <radialGradient id="g1" cx="50%" cy="50%" r="60%">
+          <stop offset="0%" stop-color="#fff59d"/>
+          <stop offset="100%" stop-color="#ffb300"/>
+        </radialGradient>
+      </defs>
+      <circle cx="80" cy="55" r="28" fill="url(#g1)"/>
+    `;
+  }else if(main.includes('cloud')){
+    svg = `
+      <circle cx="65" cy="45" r="18" fill="#ffd166"/>
+      <g fill="#e7eef8">
+        <ellipse cx="80" cy="65" rx="28" ry="18"/>
+        <ellipse cx="60" cy="65" rx="18" ry="14"/>
+        <ellipse cx="100" cy="65" rx="18" ry="14"/>
+      </g>
+    `;
+  }else if(main.includes('rain') || main.includes('drizzle')){
+    svg = `
+      <circle cx="55" cy="40" r="16" fill="#ffd166"/>
+      <g fill="#e7eef8">
+        <ellipse cx="90" cy="58" rx="28" ry="18"/>
+        <ellipse cx="70" cy="58" rx="18" ry="14"/>
+      </g>
+      <g stroke="#c6e6ff" stroke-width="3" stroke-linecap="round">
+        <path d="M60 82 l-6 10"/>
+        <path d="M80 82 l-6 10"/>
+        <path d="M100 82 l-6 10"/>
+        <path d="M120 82 l-6 10"/>
+      </g>
+    `;
+  }else if(main.includes('snow')){
+    svg = `
+      <g fill="#e7eef8">
+        <ellipse cx="85" cy="58" rx="28" ry="18"/>
+        <ellipse cx="65" cy="58" rx="18" ry="14"/>
+      </g>
+      <g stroke="#ffffff" stroke-width="3" stroke-linecap="round">
+        <path d="M60 82 l0 10"/>
+        <path d="M80 82 l0 10"/>
+        <path d="M100 82 l0 10"/>
+        <path d="M120 82 l0 10"/>
+      </g>
+    `;
+  }else if(main.includes('thunder')){
+    svg = `
+      <g fill="#e7eef8">
+        <ellipse cx="85" cy="58" rx="28" ry="18"/>
+        <ellipse cx="65" cy="58" rx="18" ry="14"/>
+      </g>
+      <polygon points="82,78 66,110 86,94 76,120 104,90 88,100" fill="#ffd166"/>
+    `;
+  }else{ // fog / mist / default
+    svg = `
+      <g fill="#e7eef8">
+        <ellipse cx="85" cy="58" rx="28" ry="18"/>
+        <ellipse cx="65" cy="58" rx="18" ry="14"/>
+      </g>
+      <g stroke="#dce7f7" stroke-width="3" stroke-linecap="round">
+        <path d="M46 86h68"/><path d="M56 96h78"/><path d="M52 106h60"/>
+      </g>
+    `;
+  }
+  art.innerHTML = svg;
+}
+
+async function fetchWeather(cityQuery){
+  if(!API_KEY || API_KEY === "YOUR_OPENWEATHER_API_KEY"){
+    setError("Add your OpenWeather API key in the code.");
+    return;
+  }
+  if(!cityQuery) return;
+
+  const url = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(cityQuery)}&appid=${API_KEY}&units=metric`;
+  try{
+    const res = await fetch(url);
+    if(!res.ok) throw new Error("City not found");
+    const data = await res.json();
+    render(data);
+  }catch(e){
+    setError(e.message || "Failed to load weather.");
+  }
+}
+
+function render(data){
+  const t = Math.round(data.main.temp);
+  const name = `${data.name}${data.sys?.country ? ", " + data.sys.country : ""}`;
+  const hum = data.main.humidity;
+  const wnd = kph(data.wind.speed);
+  const main = (data.weather && data.weather[0]?.main) || "";
+
+  temp.textContent = `${t}°C`;
+  city.textContent = name;
+  humidity.textContent = `${hum}%`;
+  wind.textContent = wnd;
+
+  drawIcon(main);
+
+  // swap theme
+  card.classList.remove('theme-default','theme-clear','theme-clouds','theme-rain','theme-snow','theme-fog','theme-thunder');
+  card.classList.add(themeFor(main));
+}
+
+/* Events */
+go.addEventListener('click', ()=> fetchWeather(q.value.trim()));
+q.addEventListener('keydown', (e)=> { if(e.key === 'Enter') fetchWeather(q.value.trim()); });
+
+/* Optional: try a starter city */
+fetchWeather("Delhi");
+</script>
+</body>
+</html>
